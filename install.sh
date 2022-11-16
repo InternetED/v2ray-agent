@@ -481,7 +481,7 @@ readConfigHostPathUUID() {
 
 	fi
 	if [[ "${coreInstallType}" == "1" ]]; then
-		currentHost=$(jq -r .inbounds[0].streamSettings.xtlsSettings.certificates[0].certificateFile ${configPath}${frontingType}.json | awk -F '[t][l][s][/]' '{print $2}' | awk -F '[.][c][r][t]' '{print $1}')
+		currentHost=$(jq -r .inbounds[0].streamSettings.tlsSettings.certificates[0].certificateFile ${configPath}${frontingType}.json | awk -F '[t][l][s][/]' '{print $2}' | awk -F '[.][c][r][t]' '{print $1}')
 		currentUUID=$(jq -r .inbounds[0].settings.clients[0].id ${configPath}${frontingType}.json)
 		currentAdd=$(jq -r .inbounds[0].settings.clients[0].add ${configPath}${frontingType}.json)
 		if [[ "${currentAdd}" == "null" ]]; then
@@ -3140,7 +3140,7 @@ EOF
 			echoContent skyBlue "----------------------------------------------------------------------------------"
 
 			echoContent yellow " ---> 通用格式(VLESS+TCP+TLS/xtls-rprx-vision)"
-			echoContent green "    vless://${id}@${currentHost}:${currentDefaultPort}?encryption=none&security=xtls&type=tcp&host=${currentHost}&headerType=none&sni=${currentHost}&flow=xtls-rprx-vision#${email}\n"
+			echoContent green "    vless://${id}@${currentHost}:${currentDefaultPort}?encryption=none&security=tls&type=tcp&host=${currentHost}&headerType=none&sni=${currentHost}&flow=xtls-rprx-vision#${email}\n"
 
 			echoContent yellow " ---> 格式化明文(VLESS+TCP+TLS/xtls-rprx-vision)"
 			echoContent green "    协议类型:VLESS，地址:${currentHost}，端口:${currentDefaultPort}，用户ID:${id}，安全:xtls，传输方式:tcp，flow:xtls-rprx-vision，账户名:${email}\n"
