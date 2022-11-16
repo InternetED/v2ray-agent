@@ -2998,7 +2998,7 @@ EOF
      {
         "id": "${uuid}",
         "add":"${add}",
-        "flow":"xtls-rprx-direct",
+        "flow":"xtls-rprx-vision",
         "email": "${domain}_${uuid}"
       }
     ],
@@ -3009,8 +3009,8 @@ EOF
   },
   "streamSettings": {
     "network": "tcp",
-    "security": "xtls",
-    "xtlsSettings": {
+    "security": "tls",
+    "tlsSettings": {
       "minVersion": "1.2",
       "alpn": [
         "http/1.1",
@@ -3135,6 +3135,21 @@ vless://${id}@${currentHost}:${currentDefaultPort}?encryption=none&security=xtls
 EOF
 			echoContent yellow " ---> 二维码 VLESS(VLESS+TCP+TLS/xtls-rprx-splice)"
 			echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${currentHost}%3A${currentDefaultPort}%3Fencryption%3Dnone%26security%3Dxtls%26type%3Dtcp%26${currentHost}%3D${currentHost}%26headerType%3Dnone%26sni%3D${currentHost}%26flow%3Dxtls-rprx-splice%23${email/direct/splice}\n"
+
+			
+			echoContent skyBlue "----------------------------------------------------------------------------------"
+
+			echoContent yellow " ---> 通用格式(VLESS+TCP+TLS/xtls-rprx-vision)"
+			echoContent green "    vless://${id}@${currentHost}:${currentDefaultPort}?encryption=none&security=xtls&type=tcp&host=${currentHost}&headerType=none&sni=${currentHost}&flow=xtls-rprx-vision#${email}\n"
+
+			echoContent yellow " ---> 格式化明文(VLESS+TCP+TLS/xtls-rprx-vision)"
+			echoContent green "    协议类型:VLESS，地址:${currentHost}，端口:${currentDefaultPort}，用户ID:${id}，安全:xtls，传输方式:tcp，flow:xtls-rprx-vision，账户名:${email}\n"
+			cat <<EOF >>"/etc/v2ray-agent/subscribe_tmp/${subAccount}"
+vless://${id}@${currentHost}:${currentDefaultPort}?encryption=none&security=tls&type=tcp&host=${currentHost}&headerType=none&sni=${currentHost}&flow=xtls-rprx-vision#${email}
+EOF
+			echoContent yellow " ---> 二维码 VLESS(VLESS+TCP+TLS/xtls-rprx-vision)"
+			echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${currentHost}%3A${currentDefaultPort}%3Fencryption%3Dnone%26security%3Dxtls%26type%3Dtcp%26${currentHost}%3D${currentHost}%26headerType%3Dnone%26sni%3D${currentHost}%26flow%3Dxtls-rprx-visione%23${email/direct/splice}\n"
+
 
 		elif [[ "${coreInstallType}" == 2 || "${coreInstallType}" == "3" ]]; then
 			echoContent yellow " ---> 通用格式(VLESS+TCP+TLS)"
