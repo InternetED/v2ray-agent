@@ -3176,15 +3176,15 @@ defaultBase64Code() {
 
         if [[ "${coreInstallType}" == "1" ]] && echo "${currentInstallProtocolType}" | grep -q 0; then
             echoContent yellow " ---> 通用格式(VLESS+TCP+TLS_Vision)"
-            echoContent green "    vless://${id}@${currentHost}:${currentDefaultPort}?encryption=none&security=reality&type=tcp&host=${domain}&headerType=none&sni=www.lovelive-anime.jp&flow=xtls-rprx-vision#${email}\n"
+            echoContent green "    vless://${id}@${domain}:${currentDefaultPort}?encryption=none&security=reality&type=tcp&host=${domain}&headerType=none&sni=www.lovelive-anime.jp&flow=xtls-rprx-vision#${email}\n"
 
             echoContent yellow " ---> 格式化明文(VLESS+TCP+TLS_Vision)"
-            echoContent green "协议类型:VLESS，地址:${currentHost}，端口:${currentDefaultPort}，用户ID:${id}，安全:reality，传输方式:tcp，flow:xtls-rprx-vision，账户名:${email}\n"
+            echoContent green "协议类型:VLESS，地址:${domain}，端口:${currentDefaultPort}，用户ID:${id}，安全:reality，传输方式:tcp，flow:xtls-rprx-vision，账户名:${email}\n"
             cat <<EOF >>"/etc/v2ray-agent/subscribe_tmp/${subAccount}"
-vless://${id}@${currentHost}:${currentDefaultPort}?encryption=none&security=reality&type=tcp&host=${currentHost}&headerType=none&sni=www.lovelive-anime.jp&flow=xtls-rprx-vision#${email}
+vless://${id}@${domain}:${currentDefaultPort}?encryption=none&security=reality&type=tcp&host=${domain}&headerType=none&sni=www.lovelive-anime.jp&flow=xtls-rprx-vision#${email}
 EOF
             echoContent yellow " ---> 二维码 VLESS(VLESS+TCP+TLS_Vision)"
-            echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${currentHost}%3A${currentDefaultPort}%3Fencryption%3Dnone%26security%3Dreality%26type%3Dtcp%26${currentHost}%3D${currentHost}%26headerType%3Dnone%26sni%3Dwww.lovelive-anime.jp%26flow%3Dxtls-rprx-vision%23${email}\n"
+            echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${domain}%3A${currentDefaultPort}%3Fencryption%3Dnone%26security%3Dreality%26type%3Dtcp%26${currentHost}%3D${currentHost}%26headerType%3Dnone%26sni%3Dwww.lovelive-anime.jp%26flow%3Dxtls-rprx-vision%23${email}\n"
 
         elif [[ "${coreInstallType}" == 2 ]]; then
             echoContent yellow " ---> 通用格式(VLESS+TCP+TLS)"
