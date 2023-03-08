@@ -3101,21 +3101,22 @@ EOF
   },
   "streamSettings": {
     "network": "tcp",
-    "security": "tls",
-    "tlsSettings": {
-      "minVersion": "1.2",
-      "alpn": [
-        "http/1.1",
-        "h2"
-      ],
-      "certificates": [
-        {
-          "certificateFile": "/etc/v2ray-agent/tls/${domain}.crt",
-          "keyFile": "/etc/v2ray-agent/tls/${domain}.key",
-          "ocspStapling": 3600,
-          "usage":"encipherment"
-        }
-      ]
+    "security": "reality",
+    "realitySettings": {
+        "show": false,
+        "dest": "www.lovelive-anime.jp:443",
+        "xver": 0,
+        "serverNames": [
+            "www.lovelive-anime.jp",
+            ${currentHost}
+        ],
+        "privateKey": "M4cZLR81ErNfxnG1fAnNUIATs_UXqe6HR78wINhH7RA",
+        "minClientVer": "",
+        "maxClientVer": "",
+        "maxTimeDiff": 0,
+        "shortIds": [
+            "906f47df46efecc5"
+        ]                  
     }
   }
 }
