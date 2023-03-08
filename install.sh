@@ -3107,8 +3107,7 @@ EOF
         "dest": "www.lovelive-anime.jp:443",
         "xver": 0,
         "serverNames": [
-            "www.lovelive-anime.jp",
-            ${currentHost}
+            "www.lovelive-anime.jp"
         ],
         "privateKey": "M4cZLR81ErNfxnG1fAnNUIATs_UXqe6HR78wINhH7RA",
         "minClientVer": "",
@@ -3117,7 +3116,14 @@ EOF
         "shortIds": [
             "906f47df46efecc5"
         ]                  
-    }
+    },
+    "sniffing": {
+        "enabled": true,
+        "destOverride": [
+            "http",
+            "tls"
+        ]
+    }    
   }
 }
 ]
