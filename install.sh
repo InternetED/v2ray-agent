@@ -3321,7 +3321,7 @@ EOF
             "publicKey": "${realityPublicKey}",
             "maxTimeDiff": 70000,
             "shortIds": [
-                ""
+                "906f47df46efecc5"
             ]
         }
       }
