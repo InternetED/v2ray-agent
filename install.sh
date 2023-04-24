@@ -3319,6 +3319,7 @@ EOF
             ],
             "privateKey": "${realityPrivateKey}",
             "publicKey": "${realityPublicKey}",
+            "minClientVer":"1.8.0",
             "maxTimeDiff": 70000,
             "shortIds": [
                 "906f47df46efecc5"
@@ -5941,11 +5942,11 @@ initRealityDest() {
     if [[ -n "${domain}" ]]; then
         realityDestDomain=${domain}:${port}
     else
-        echoContent skyBlue "\n===== 生成配置回落的域名 例如:[addons.mozilla.org:443] ======\n"
+        echoContent skyBlue "\n===== 生成配置回落的域名 例如:[www.google-analytics.com:443] ======\n"
         echoContent green "回落域名参考：https://www.v2ray-agent.com/archives/1680104902581#heading-8\n"
         read -r -p "请输入[回车]使用默认:" realityDestDomain
         if [[ -z "${realityDestDomain}" ]]; then
-            realityDestDomain="addons.mozilla.org:443"
+            realityDestDomain="www.google-analytics.com:443"
         fi
         echoContent yellow "\n ---> 回落域名: ${realityDestDomain}"
     fi
@@ -5958,10 +5959,10 @@ initRealityClientServersName() {
         echoContent skyBlue "\n================ 配置客户端可用的serverNames ================\n"
         echoContent yellow "#注意事项"
         echoContent green "客户端可用的serverNames：https://www.v2ray-agent.com/archives/1680104902581#heading-8\n"
-        echoContent yellow "录入示例:addons.mozilla.org\n"
+        echoContent yellow "录入示例:www.google-analytics.com\n"
         read -r -p "请输入[回车]使用默认:" realityServerNames
         if [[ -z "${realityServerNames}" ]]; then
-            realityServerNames=\"addons.mozilla.org\"
+            realityServerNames=\"www.google-analytics.com\"
         else
             realityServerNames=\"${realityServerNames//,/\",\"}\"
         fi
