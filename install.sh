@@ -86,6 +86,7 @@ checkCPUVendor() {
                 hysteriaCoreCPUVendor="hysteria-linux-amd64"
                 ;;
             'armv8' | 'aarch64')
+                cpuVendor="arm"
                 xrayCoreCPUVendor="Xray-linux-arm64-v8a"
                 v2rayCoreCPUVendor="v2ray-linux-arm64-v8a"
                 hysteriaCoreCPUVendor="hysteria-linux-arm64"
@@ -114,6 +115,7 @@ initVar() {
     xrayCoreCPUVendor=""
     v2rayCoreCPUVendor=""
     hysteriaCoreCPUVendor=""
+    cpuVendor=""
 
     # 域名
     domain=
@@ -675,8 +677,16 @@ readXrayCoreRealityConfig
 # 初始化安装目录
 mkdirTools() {
     mkdir -p /etc/v2ray-agent/tls
-    mkdir -p /etc/v2ray-agent/subscribe
-    mkdir -p /etc/v2ray-agent/subscribe_tmp
+    mkdir -p /etc/v2ray-agent/subscribe_local/default
+    mkdir -p /etc/v2ray-agent/subscribe_local/clashMeta
+
+    mkdir -p /etc/v2ray-agent/subscribe_remote/default
+    mkdir -p /etc/v2ray-agent/subscribe_remote/clashMeta
+
+    mkdir -p /etc/v2ray-agent/subscribe/default
+    mkdir -p /etc/v2ray-agent/subscribe/clashMetaProfiles
+    mkdir -p /etc/v2ray-agent/subscribe/clashMeta
+
     mkdir -p /etc/v2ray-agent/v2ray/conf
     mkdir -p /etc/v2ray-agent/v2ray/tmp
     mkdir -p /etc/v2ray-agent/xray/conf
@@ -895,6 +905,11 @@ EOF
 
 # 安装warp
 installWarp() {
+    if [[ "${cpuVendor}" == "arm" ]]; then
+        echoContent red " ---> 官方WARP客户端不支持ARM架构"
+        exit 0
+    fi
+
     ${installType} gnupg2 -y >/dev/null 2>&1
     if [[ "${release}" == "debian" ]]; then
         curl -s https://pkg.cloudflareclient.com/pubkey.gpg | sudo apt-key add - >/dev/null 2>&1
@@ -924,11 +939,12 @@ installWarp() {
     warp-cli --accept-tos connect
     warp-cli --accept-tos enable-always-on
 
-    #	if [[]];then
-    #	fi
-    # todo curl --socks5 127.0.0.1:31303 https://www.cloudflare.com/cdn-cgi/trace
-    # systemctl daemon-reload
-    # systemctl enable cloudflare-warp
+    local warpStatus=
+    warpStatus=$(curl -s --socks5 127.0.0.1:31303 https://www.cloudflare.com/cdn-cgi/trace | grep "warp" | cut -d "=" -f 2)
+
+    if [[ "${warpStatus}" == "on" ]]; then
+        echoContent green " ---> WARP启动成功"
+    fi
 }
 
 # 检查端口实际开放状态
@@ -1058,9 +1074,9 @@ server {
 	client_header_timeout 1071906480m;
     keepalive_timeout 1071906480m;
 
-	location /s/ {
-    	add_header Content-Type text/plain;
-    	alias /etc/v2ray-agent/subscribe/;
+	location ~ ^/s/(clashMeta|default|clashMetaProfiles)/(.*) {
+        default_type 'text/plain; charset=utf-8';
+        alias /etc/v2ray-agent/subscribe/\$1/\$2;
     }
 
     location /${currentPath}grpc {
@@ -1095,9 +1111,9 @@ server {
 	listen 127.0.0.1:31302 http2;
 	server_name ${domain};
 	root ${nginxStaticPath};
-	location /s/ {
-    		add_header Content-Type text/plain;
-    		alias /etc/v2ray-agent/subscribe/;
+	location ~ ^/s/(clashMeta|default|clashMetaProfiles)/(.*) {
+        default_type 'text/plain; charset=utf-8';
+        alias /etc/v2ray-agent/subscribe/\$1/\$2;
     }
 	location /${currentPath}grpc {
 		client_max_body_size 0;
@@ -1120,9 +1136,9 @@ server {
 	listen 127.0.0.1:31302 http2;
 	server_name ${domain};
 	root ${nginxStaticPath};
-	location /s/ {
-    		add_header Content-Type text/plain;
-    		alias /etc/v2ray-agent/subscribe/;
+	location ~ ^/s/(clashMeta|default|clashMetaProfiles)/(.*) {
+        default_type 'text/plain; charset=utf-8';
+        alias /etc/v2ray-agent/subscribe/\$1/\$2;
     }
 	location /${currentPath}trojangrpc {
 		client_max_body_size 0;
@@ -1144,10 +1160,11 @@ server {
 	listen 127.0.0.1:31302 http2;
 	server_name ${domain};
 	root ${nginxStaticPath};
-	location /s/ {
-    		add_header Content-Type text/plain;
-    		alias /etc/v2ray-agent/subscribe/;
-    }
+
+    location ~ ^/s/(clashMeta|default|clashMetaProfiles)/(.*) {
+            default_type 'text/plain; charset=utf-8';
+            alias /etc/v2ray-agent/subscribe/\$1/\$2;
+        }
 	location / {
 	}
 }
@@ -1159,10 +1176,10 @@ server {
 	listen 127.0.0.1:31300;
 	server_name ${domain};
 	root ${nginxStaticPath};
-	location /s/ {
-		add_header Content-Type text/plain;
-		alias /etc/v2ray-agent/subscribe/;
-	}
+	location ~ ^/s/(clashMeta|default|clashMetaProfiles)/(.*) {
+            default_type 'text/plain; charset=utf-8';
+            alias /etc/v2ray-agent/subscribe/\$1/\$2;
+        }
 	location / {
 		add_header Strict-Transport-Security "max-age=15552000; preload" always;
 	}
@@ -1361,7 +1378,8 @@ customPortFunction() {
             else
                 # todo dns api
                 wildcardDomainStatus=true
-                echoContent red "未检测到80端口开放，无法安装，只可使用dns api方式安装 todo"
+                echoContent red "未检测到80端口开放，无法安装，后续会支持DNS API [TODO]"
+                echoContent yellow "检查域名解析，可以通过ping排查"
                 exit 0
             fi
         fi
@@ -2409,8 +2427,11 @@ initHysteriaPort() {
     fi
 
     if [[ -z "${hysteriaPort}" ]]; then
-        echoContent yellow "请输入Hysteria端口[例: 10000]，不可与其他服务重复"
+        echoContent yellow "请输入Hysteria端口[回车随机10000-60000]，不可与其他服务重复"
         read -r -p "端口:" hysteriaPort
+        if [[ -z "${hysteriaPort}" ]]; then
+            hysteriaPort=$((RANDOM % 50001 + 10000))
+        fi
     fi
     if [[ -z ${hysteriaPort} ]]; then
         echoContent red " ---> 端口不可为空"
@@ -2997,7 +3018,7 @@ initXrayConfig() {
     fi
 
     if [[ -n "${uuid}" ]]; then
-        currentClients='[{"id":"'${uuid}'","add":"'${add}'","flow":"xtls-rprx-vision","email":"default-VLESS_TCP/TLS_Vision"}]'
+        currentClients='[{"id":"'${uuid}'","add":"'${add}'","flow":"xtls-rprx-vision","email":"'${uuid}'-VLESS_TCP/TLS_Vision"}]'
         echoContent yellow "\n ${uuid}"
     fi
 
@@ -3009,6 +3030,22 @@ initXrayConfig() {
   "log": {
     "error": "/etc/v2ray-agent/xray/error.log",
     "loglevel": "warning"
+  }
+}
+EOF
+    fi
+
+    if [[ ! -f "/etc/v2ray-agent/xray/conf/12_policy.json" ]]; then
+
+        cat <<EOF >/etc/v2ray-agent/xray/conf/12_policy.json
+{
+  "policy": {
+      "levels": {
+          "0": {
+              "handshake": $((1 + RANDOM % 4)),
+              "connIdle": $((250 + RANDOM % 51))
+          }
+      }
   }
 }
 EOF
@@ -3396,7 +3433,8 @@ defaultBase64Code() {
     local type=$1
     local email=$2
     local id=$3
-
+    local user=
+    user=$(echo "${email}" | awk -F "[-]" '{print $1}')
     port=${currentDefaultPort}
 
     if [[ "${type}" == "vlesstcp" ]]; then
@@ -3407,8 +3445,20 @@ defaultBase64Code() {
 
             echoContent yellow " ---> 格式化明文(VLESS+TCP+TLS_Vision)"
             echoContent green "协议类型:VLESS，地址:${currentHost}，端口:${currentDefaultPort}，用户ID:${id}，安全:tls，传输方式:tcp，flow:xtls-rprx-vision，账户名:${email}\n"
-            cat <<EOF >>"/etc/v2ray-agent/subscribe_tmp/${id}"
+            cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
 vless://${id}@${currentHost}:${currentDefaultPort}?encryption=none&security=tls&type=tcp&host=${currentHost}&headerType=none&sni=${currentHost}&flow=xtls-rprx-vision#${email}
+EOF
+            cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
+  - name: "${email}"
+    type: vless
+    server: ${currentHost}
+    port: ${currentDefaultPort}
+    uuid: ${id}
+    network: tcp
+    tls: true
+    udp: true
+    flow: xtls-rprx-vision
+    client-fingerprint: chrome
 EOF
             echoContent yellow " ---> 二维码 VLESS(VLESS+TCP+TLS_Vision)"
             echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${currentHost}%3A${currentDefaultPort}%3Fencryption%3Dnone%26security%3Dtls%26type%3Dtcp%26${currentHost}%3D${currentHost}%26headerType%3Dnone%26sni%3D${currentHost}%26flow%3Dxtls-rprx-vision%23${email}\n"
@@ -3419,7 +3469,7 @@ EOF
             echoContent yellow " ---> 格式化明文(VLESS+TCP+TLS)"
             echoContent green "    协议类型:VLESS，地址:${currentHost}，端口:${currentDefaultPort}，用户ID:${id}，安全:tls，传输方式:tcp，账户名:${email}\n"
 
-            cat <<EOF >>"/etc/v2ray-agent/subscribe_tmp/${id}"
+            cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
 vless://${id}@${currentHost}:${currentDefaultPort}?security=tls&encryption=none&host=${currentHost}&headerType=none&type=tcp#${email}
 EOF
             echoContent yellow " ---> 二维码 VLESS(VLESS+TCP+TLS)"
@@ -3432,7 +3482,7 @@ EOF
 
         echoContent yellow " ---> 格式化明文(Trojan+TCP+TLS_Vision)"
         echoContent green "协议类型:Trojan，地址:${currentHost}，端口:${currentDefaultPort}，用户ID:${id}，安全:xtls，传输方式:tcp，flow:xtls-rprx-vision，账户名:${email}\n"
-        cat <<EOF >>"/etc/v2ray-agent/subscribe_tmp/${id}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
 trojan://${id}@${currentHost}:${currentDefaultPort}?encryption=none&security=xtls&type=tcp&host=${currentHost}&headerType=none&sni=${currentHost}&flow=xtls-rprx-vision#${email}
 EOF
         echoContent yellow " ---> 二维码 Trojan(Trojan+TCP+TLS_Vision)"
@@ -3448,8 +3498,26 @@ EOF
         echoContent green "    vmess://${qrCodeBase64Default}\n"
         echoContent yellow " ---> 二维码 vmess(VMess+WS+TLS)"
 
-        cat <<EOF >>"/etc/v2ray-agent/subscribe_tmp/${id}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
 vmess://${qrCodeBase64Default}
+EOF
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
+  - name: "${email}"
+    type: vmess
+    server: ${currentHost}
+    port: ${currentDefaultPort}
+    uuid: ${id}
+    alterId: 0
+    cipher: none
+    udp: true
+    tls: true
+    client-fingerprint: chrome
+    servername: ${currentAdd}
+    network: ws
+    ws-opts:
+      path: /${currentPath}vws
+      headers:
+        Host: ${currentHost}
 EOF
         echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vmess://${qrCodeBase64Default}\n"
 
@@ -3461,8 +3529,24 @@ EOF
         echoContent yellow " ---> 格式化明文(VLESS+WS+TLS)"
         echoContent green "    协议类型:VLESS，地址:${currentAdd}，伪装域名/SNI:${currentHost}，端口:${currentDefaultPort}，用户ID:${id}，安全:tls，传输方式:ws，路径:/${currentPath}ws，账户名:${email}\n"
 
-        cat <<EOF >>"/etc/v2ray-agent/subscribe_tmp/${id}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
 vless://${id}@${currentAdd}:${currentDefaultPort}?encryption=none&security=tls&type=ws&host=${currentHost}&sni=${currentHost}&path=/${currentPath}ws#${email}
+EOF
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
+  - name: "${email}"
+    type: vless
+    server: ${currentAdd}
+    port: ${currentDefaultPort}
+    uuid: ${id}
+    udp: true
+    tls: true
+    network: ws
+    client-fingerprint: chrome
+    servername: ${currentHost}
+    ws-opts:
+      path: /${currentPath}ws
+      headers:
+        Host: ${currentHost}
 EOF
 
         echoContent yellow " ---> 二维码 VLESS(VLESS+WS+TLS)"
@@ -3476,7 +3560,7 @@ EOF
         echoContent yellow " ---> 格式化明文(VLESS+gRPC+TLS)"
         echoContent green "    协议类型:VLESS，地址:${currentAdd}，伪装域名/SNI:${currentHost}，端口:${currentDefaultPort}，用户ID:${id}，安全:tls，传输方式:gRPC，alpn:h2，serviceName:${currentPath}grpc，账户名:${email}\n"
 
-        cat <<EOF >>"/etc/v2ray-agent/subscribe_tmp/${id}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
 vless://${id}@${currentAdd}:${currentDefaultPort}?encryption=none&security=tls&type=grpc&host=${currentHost}&path=${currentPath}grpc&serviceName=${currentPath}grpc&alpn=h2&sni=${currentHost}#${email}
 EOF
         echoContent yellow " ---> 二维码 VLESS(VLESS+gRPC+TLS)"
@@ -3487,8 +3571,19 @@ EOF
         echoContent yellow " ---> Trojan(TLS)"
         echoContent green "    trojan://${id}@${currentHost}:${currentDefaultPort}?peer=${currentHost}&sni=${currentHost}&alpn=http/1.1#${currentHost}_Trojan\n"
 
-        cat <<EOF >>"/etc/v2ray-agent/subscribe_tmp/${id}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
 trojan://${id}@${currentHost}:${currentDefaultPort}?peer=${currentHost}&sni=${currentHost}&alpn=http/1.1#${email}_Trojan
+EOF
+
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
+  - name: "${email}"
+    type: trojan
+    server: ${currentHost}
+    port: ${currentDefaultPort}
+    password: ${id}
+    client-fingerprint: chrome
+    udp: true
+    sni: ${currentHost}
 EOF
         echoContent yellow " ---> 二维码 Trojan(TLS)"
         echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=trojan%3a%2f%2f${id}%40${currentHost}%3a${port}%3fpeer%3d${currentHost}%26sni%3d${currentHost}%26alpn%3Dhttp/1.1%23${email}\n"
@@ -3498,8 +3593,20 @@ EOF
 
         echoContent yellow " ---> Trojan gRPC(TLS)"
         echoContent green "    trojan://${id}@${currentAdd}:${currentDefaultPort}?encryption=none&peer=${currentHost}&security=tls&type=grpc&sni=${currentHost}&alpn=h2&path=${currentPath}trojangrpc&serviceName=${currentPath}trojangrpc#${email}\n"
-        cat <<EOF >>"/etc/v2ray-agent/subscribe_tmp/${id}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
 trojan://${id}@${currentAdd}:${currentDefaultPort}?encryption=none&peer=${currentHost}&security=tls&type=grpc&sni=${currentHost}&alpn=h2&path=${currentPath}trojangrpc&serviceName=${currentPath}trojangrpc#${email}
+EOF
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
+  - name: "${email}"
+    server: ${currentAdd}
+    port: ${currentDefaultPort}
+    type: trojan
+    password: ${id}
+    network: grpc
+    sni: ${currentHost}
+    udp: true
+    grpc-opts:
+      grpc-service-name: "${currentPath}trojangrpc"
 EOF
         echoContent yellow " ---> 二维码 Trojan gRPC(TLS)"
         echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=trojan%3a%2f%2f${id}%40${currentAdd}%3a${currentDefaultPort}%3Fencryption%3Dnone%26security%3Dtls%26peer%3d${currentHost}%26type%3Dgrpc%26sni%3d${currentHost}%26path%3D${currentPath}trojangrpc%26alpn%3Dh2%26serviceName%3D${currentPath}trojangrpc%23${email}\n"
@@ -3509,8 +3616,21 @@ EOF
         hysteriaEmail=$(echo "${email}" | awk -F "[_]" '{print $1}')_hysteria
         echoContent yellow " ---> Hysteria(TLS)"
         echoContent green "    hysteria://${currentHost}:${hysteriaPort}?protocol=${hysteriaProtocol}&auth=${id}&peer=${currentHost}&insecure=0&alpn=h3&upmbps=${hysteriaClientUploadSpeed}&downmbps=${hysteriaClientDownloadSpeed}#${hysteriaEmail}\n"
-        cat <<EOF >>"/etc/v2ray-agent/subscribe_tmp/${id}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
 hysteria://${currentHost}:${hysteriaPort}?protocol=${hysteriaProtocol}&auth=${id}&peer=${currentHost}&insecure=0&alpn=h3&upmbps=${hysteriaClientUploadSpeed}&downmbps=${hysteriaClientDownloadSpeed}#${hysteriaEmail}
+EOF
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
+  - name: "${hysteriaEmail}"
+    type: hysteria
+    server: ${currentHost}
+    port: ${hysteriaPort}
+    auth_str: ${id}
+    alpn:
+     - h3
+    protocol: ${hysteriaProtocol}
+    up: "${hysteriaClientUploadSpeed}"
+    down: "${hysteriaClientDownloadSpeed}"
+    sni: ${currentHost}
 EOF
         echoContent yellow " ---> 二维码 Hysteria(TLS)"
         echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=hysteria%3A%2F%2F${currentHost}%3A${hysteriaPort}%3Fprotocol%3D${hysteriaProtocol}%26auth%3D${id}%26peer%3D${currentHost}%26insecure%3D0%26alpn%3Dh3%26upmbps%3D${hysteriaClientUploadSpeed}%26downmbps%3D${hysteriaClientDownloadSpeed}%23${hysteriaEmail}\n"
@@ -3520,8 +3640,23 @@ EOF
 
         echoContent yellow " ---> 格式化明文(VLESS+reality+uTLS+Vision)"
         echoContent green "协议类型:VLESS reality，地址:$(getPublicIP)，publicKey:${currentRealityPublicKey}，serverNames：${currentRealityServerNames}，端口:${currentRealityPort}，用户ID:${id}，传输方式:tcp，账户名:${email}\n"
-        cat <<EOF >>"/etc/v2ray-agent/subscribe_tmp/${id}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
 vless://${id}@$(getPublicIP):${currentRealityPort}?encryption=none&security=reality&type=tcp&sni=${currentRealityServerNames}&fp=chrome&pbk=${currentRealityPublicKey}&flow=xtls-rprx-vision#${email}
+EOF
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
+  - name: "${email}"
+    type: vless
+    server: $(getPublicIP)
+    port: ${currentRealityPort}
+    uuid: ${id}
+    network: tcp
+    tls: true
+    udp: true
+    flow: xtls-rprx-vision
+    servername: ${currentRealityServerNames}
+    reality-opts:
+      public-key: ${currentRealityPublicKey}
+    client-fingerprint: chrome
 EOF
         echoContent yellow " ---> 二维码 VLESS(VLESS+reality+uTLS+Vision)"
         echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40$(getPublicIP)%3A${currentRealityPort}%3Fencryption%3Dnone%26security%3Dreality%26type%3Dtcp%26sni%3D${currentRealityServerNames}%26fp%3Dchrome%26pbk%3D${currentRealityPublicKey}%26flow%3Dxtls-rprx-vision%23${email}\n"
@@ -3532,8 +3667,24 @@ EOF
 
         echoContent yellow " ---> 格式化明文(VLESS+reality+uTLS+gRPC)"
         echoContent green "协议类型:VLESS reality，serviceName:grpc，地址:$(getPublicIP)，publicKey:${currentRealityPublicKey}，serverNames：${currentRealityServerNames}，端口:${currentRealityPort}，用户ID:${id}，传输方式:gRPC，client-fingerprint：chrome，账户名:${email}\n"
-        cat <<EOF >>"/etc/v2ray-agent/subscribe_tmp/${id}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
 vless://${id}@$(getPublicIP):${currentRealityPort}?encryption=none&security=reality&type=grpc&sni=${currentRealityServerNames}&fp=chrome&pbk=${currentRealityPublicKey}&path=grpc&serviceName=grpc#${email}
+EOF
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
+  - name: "${email}"
+    type: vless
+    server: $(getPublicIP)
+    port: ${currentRealityPort}
+    uuid: ${id}
+    network: grpc
+    tls: true
+    udp: true
+    servername: ${currentRealityServerNames}
+    reality-opts:
+      public-key: ${currentRealityPublicKey}
+    grpc-opts:
+      grpc-service-name: "grpc"
+    client-fingerprint: chrome
 EOF
         echoContent yellow " ---> 二维码 VLESS(VLESS+reality+uTLS+gRPC)"
         echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40$(getPublicIP)%3A${currentRealityPort}%3Fencryption%3Dnone%26security%3Dreality%26type%3Dgrpc%26sni%3D${currentRealityServerNames}%26fp%3Dchrome%26pbk%3D${currentRealityPublicKey}%26path%3Dgrpc%26serviceName%3Dgrpc%23${email}\n"
@@ -5814,13 +5965,19 @@ cronRenewTLS() {
 # 账号管理
 manageAccount() {
     echoContent skyBlue "\n功能 1/${totalProgress} : 账号管理"
+    if [[ -z "${configPath}" ]]; then
+        echoContent red " ---> 未安装"
+        exit 0
+    fi
+
     echoContent red "\n=============================================================="
     echoContent yellow "# 添加单个用户时可自定义email和uuid"
     echoContent yellow "# 如安装了Hysteria，账号会同时添加到Hysteria\n"
     echoContent yellow "1.查看账号"
     echoContent yellow "2.查看订阅"
-    echoContent yellow "3.添加用户"
-    echoContent yellow "4.删除用户"
+    echoContent yellow "3.添加订阅"
+    echoContent yellow "4.添加用户"
+    echoContent yellow "5.删除用户"
     echoContent red "=============================================================="
     read -r -p "请输入:" manageAccountStatus
     if [[ "${manageAccountStatus}" == "1" ]]; then
@@ -5828,14 +5985,433 @@ manageAccount() {
     elif [[ "${manageAccountStatus}" == "2" ]]; then
         subscribe 1
     elif [[ "${manageAccountStatus}" == "3" ]]; then
-        addUserXray
+        addSubscribeMenu 1
     elif [[ "${manageAccountStatus}" == "4" ]]; then
+        addUserXray
+    elif [[ "${manageAccountStatus}" == "5" ]]; then
         removeUser
     else
         echoContent red " ---> 选择错误"
     fi
 }
 
+# 添加订阅
+addSubscribeMenu() {
+    echoContent skyBlue "\n===================== 添加其他机器订阅 ======================="
+    echoContent yellow "1.添加"
+    echoContent yellow "2.移除"
+    echoContent red "=============================================================="
+    read -r -p "请选择:" addSubscribeStatus
+    if [[ "${addSubscribeStatus}" == "1" ]]; then
+        addOtherSubscribe
+    elif [[ "${addSubscribeStatus}" == "2" ]]; then
+        rm -rf /etc/v2ray-agent/subscribe_remote/clashMeta/*
+        rm -rf /etc/v2ray-agent/subscribe_remote/default/*
+        echoContent green " ---> 其他机器订阅删除成功"
+        subscribe 1
+    fi
+}
+# 添加其他机器clashMeta订阅
+addOtherSubscribe() {
+    echoContent yellow "#注意事项:"
+    echoContent yellow "请仔细阅读以下文章： https://www.v2ray-agent.com/archives/1681804748677"
+    echoContent skyBlue "录入示例：www.v2ray-agent.com:443:vps1\n"
+    read -r -p "请输入域名 端口 机器别名:" remoteSubscribeUrl
+    if [[ -z "${remoteSubscribeUrl}" ]]; then
+        echoContent red " ---> 不可为空"
+        addSubscribe
+    elif ! echo "${remoteSubscribeUrl}" | grep -q ":"; then
+        echoContent red " ---> 规则不合法"
+    else
+        local remoteUrl=
+        remoteUrl=$(echo "${remoteSubscribeUrl}" | awk -F "[:]" '{print $1":"$2}')
+
+        local serverAlias=
+        serverAlias=$(echo "${remoteSubscribeUrl}" | awk -F "[:]" '{print $3}')
+
+        if [[ -n $(ls /etc/v2ray-agent/subscribe/clashMeta/) || -n $(ls /etc/v2ray-agent/subscribe/default/) ]]; then
+            find /etc/v2ray-agent/subscribe_local/default/* | while read -r email; do
+                email=$(echo "${email}" | awk -F "[d][e][f][a][u][l][t][/]" '{print $2}')
+
+                local emailMd5=
+                emailMd5=$(echo -n "${email}$(cat "/etc/v2ray-agent/subscribe_local/subscribeSalt")"$'\n' | md5sum | awk '{print $1}')
+
+                local clashMetaProxies=
+                clashMetaProxies=$(curl -s -4 "https://${remoteUrl}/s/clashMeta/${emailMd5}" | sed '/proxies:/d' | sed "s/${email}/${email}_${serverAlias}/g")
+
+                local default=
+                default=$(curl -s -4 "https://${remoteUrl}/s/default/${emailMd5}" | base64 -d | sed "s/${email}/${email}_${serverAlias}/g")
+
+                if echo "${default}" | grep -q "${email}"; then
+                    echo "${default}" >>"/etc/v2ray-agent/subscribe/default/${emailMd5}"
+                    echo "${default}" >>"/etc/v2ray-agent/subscribe_remote/default/${email}"
+
+                    echoContent green " ---> 通用订阅 ${email} 添加成功"
+                else
+                    echoContent red " ---> 通用订阅 ${email} 不存在"
+                fi
+
+                if echo "${clashMetaProxies}" | grep -q "${email}"; then
+                    echo "${clashMetaProxies}" >>"/etc/v2ray-agent/subscribe/clashMeta/${emailMd5}"
+                    echo "${clashMetaProxies}" >>"/etc/v2ray-agent/subscribe_remote/clashMeta/${email}"
+
+                    echoContent green " ---> clashMeta订阅 ${email} 添加成功"
+                else
+                    echoContent red " ---> clashMeta订阅 ${email}不存在"
+                fi
+            done
+        fi
+    fi
+}
+# clashMeta配置文件
+clashMetaConfig() {
+    local url=$1
+    local id=$2
+    cat <<EOF >"/etc/v2ray-agent/subscribe/clashMetaProfiles/${id}"
+port: 7890
+socks-port: 7891
+allow-lan: true
+mode: Rule
+log-level: debug
+external-controller: 127.0.0.1:9090
+dns:
+  enable: true
+  ipv6: false
+  listen: 0.0.0.0:53
+  enhanced-mode: redir-host
+  nameserver:
+    - https://doh.pub/dns-query
+    - tls://dot.pub:853
+    - https://223.5.5.5/dns-query
+    - tls://223.5.5.5:853
+  default-nameserver:
+    - 114.114.114.114
+    - 119.29.29.29
+    - 223.5.5.5
+proxy-providers:
+  provider1:
+    type: http
+    path: ./provider1.yaml
+    url: ${url}
+    interval: 3600
+    health-check:
+      enable: false
+      url: http://www.gstatic.com/generate_204
+      interval: 300
+proxy-groups:
+  - name: 节点选择
+    type: select
+    use:
+      - provider1
+    proxies:
+      - 手动切换
+      - 自动选择
+      - 故障转移
+      - 负载均衡
+      - DIRECT
+  - name: 流媒体
+    type: select
+    use:
+      - provider1
+    proxies:
+      - 手动切换
+      - 自动选择
+      - 故障转移
+      - 负载均衡
+      - DIRECT
+  - name: 手动切换
+    type: select
+    use:
+      - provider1
+    proxies: null
+  - name: 自动选择
+    type: url-test
+    url: http://www.gstatic.com/generate_204
+    interval: 36000
+    tolerance: 50
+    use:
+      - provider1
+    proxies: null
+  - name: 故障转移
+    type: fallback
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    tolerance: 50
+    use:
+      - provider1
+    proxies:
+      - 自动选择
+  - name: 负载均衡
+    type: load-balance
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    tolerance: 50
+    use:
+      - provider1
+    proxies: null
+  - name: 全球代理
+    type: select
+    use:
+      - provider1
+    proxies:
+      - 手动切换
+      - 自动选择
+  - name: Telegram
+    type: select
+    use:
+      - provider1
+    proxies:
+      - 手动切换
+      - 自动选择
+
+  - name: YouTube
+    type: select
+    use:
+      - provider1
+    proxies:
+      - 手动切换
+      - 自动选择
+  - name: Netflix
+    type: select
+    use:
+      - provider1
+    proxies:
+      - 流媒体
+      - 节点选择
+      - 自动选择
+  - name: HBO
+    type: select
+    use:
+      - provider1
+    proxies:
+      - 流媒体
+      - 节点选择
+      - 自动选择
+  - name: Bing
+    type: select
+    use:
+      - provider1
+    proxies:
+      - 节点选择
+      - 自动选择
+  - name: OpenAI
+    type: select
+    use:
+      - provider1
+    proxies:
+      - 节点选择
+      - 自动选择
+
+  - name: Disney
+    type: select
+    use:
+      - provider1
+    proxies:
+      - 流媒体
+      - 节点选择
+      - 自动选择
+  - name: GitHub
+    type: select
+    use:
+      - provider1
+    proxies:
+      - 手动切换
+      - 自动选择
+      - DIRECT
+  - name: Spotify
+    type: select
+    use:
+      - provider1
+    proxies:
+      - 流媒体
+      - 手动切换
+      - 自动选择
+      - DIRECT
+  - name: Google
+    type: select
+    use:
+      - provider1
+    proxies:
+      - 手动切换
+      - 自动选择
+      - DIRECT
+  - name: 国内媒体
+    type: select
+    use:
+      - provider1
+    proxies:
+      - DIRECT
+  - name: 本地直连
+    type: select
+    use:
+      - provider1
+    proxies:
+      - DIRECT
+      - 节点选择
+      - 自动选择
+  - name: 漏网之鱼
+    type: select
+    use:
+      - provider1
+    proxies:
+      - DIRECT
+      - 节点选择
+      - 手动切换
+      - 自动选择
+rule-providers:
+  reject:
+    type: http
+    behavior: domain
+    url: https://ghproxy.com/https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/reject.txt
+    path: ./ruleset/reject.yaml
+    interval: 86400
+  proxy:
+    type: http
+    behavior: domain
+    url: https://ghproxy.com/https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/proxy.txt
+    path: ./ruleset/proxy.yaml
+    interval: 86400
+  direct:
+    type: http
+    behavior: domain
+    url: https://ghproxy.com/https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/direct.txt
+    path: ./ruleset/direct.yaml
+    interval: 86400
+  private:
+    type: http
+    behavior: domain
+    url: https://ghproxy.com/https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/private.txt
+    path: ./ruleset/private.yaml
+    interval: 86400
+  gfw:
+    type: http
+    behavior: domain
+    url: https://ghproxy.com/https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/gfw.txt
+    path: ./ruleset/gfw.yaml
+    interval: 86400
+  greatfire:
+    type: http
+    behavior: domain
+    url: https://ghproxy.com/https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/greatfire.txt
+    path: ./ruleset/greatfire.yaml
+    interval: 86400
+  tld-not-cn:
+    type: http
+    behavior: domain
+    url: https://ghproxy.com/https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/tld-not-cn.txt
+    path: ./ruleset/tld-not-cn.yaml
+    interval: 86400
+  telegramcidr:
+    type: http
+    behavior: ipcidr
+    url: https://ghproxy.com/https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/telegramcidr.txt
+    path: ./ruleset/telegramcidr.yaml
+    interval: 86400
+  cncidr:
+    type: http
+    behavior: ipcidr
+    url: https://ghproxy.com/https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/cncidr.txt
+    path: ./ruleset/cncidr.yaml
+    interval: 86400
+  lancidr:
+    type: http
+    behavior: ipcidr
+    url: https://ghproxy.com/https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/lancidr.txt
+    path: ./ruleset/lancidr.yaml
+    interval: 86400
+  applications:
+    type: http
+    behavior: classical
+    url: https://ghproxy.com/https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/applications.txt
+    path: ./ruleset/applications.yaml
+    interval: 86400
+  Disney:
+    type: http
+    behavior: classical
+    url: https://ghproxy.com/https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Disney/Disney.yaml
+    path: ./ruleset/disney.yaml
+    interval: 86400
+  Netflix:
+    type: http
+    behavior: classical
+    url: https://ghproxy.com/https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Netflix/Netflix.yaml
+    path: ./ruleset/netflix.yaml
+    interval: 86400
+  YouTube:
+    type: http
+    behavior: classical
+    url: https://ghproxy.com/https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/YouTube/YouTube.yaml
+    path: ./ruleset/youtube.yaml
+    interval: 86400
+  HBO:
+    type: http
+    behavior: classical
+    url: https://ghproxy.com/https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/HBO/HBO.yaml
+    path: ./ruleset/hbo.yaml
+    interval: 86400
+  OpenAI:
+    type: http
+    behavior: classical
+    url: https://ghproxy.com/https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/OpenAI/OpenAI.yaml
+    path: ./ruleset/openai.yaml
+    interval: 86400
+  Bing:
+    type: http
+    behavior: classical
+    url: https://ghproxy.com/https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Bing/Bing.yaml
+    path: ./ruleset/bing.yaml
+    interval: 86400
+  Google:
+    type: http
+    behavior: classical
+    url: https://ghproxy.com/https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Google/Google.yaml
+    path: ./ruleset/google.yaml
+    interval: 86400
+  GitHub:
+    type: http
+    behavior: classical
+    url: https://ghproxy.com/https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/GitHub/GitHub.yaml
+    path: ./ruleset/github.yaml
+    interval: 86400
+  Spotify:
+    type: http
+    behavior: classical
+    url: https://ghproxy.com/https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Spotify/Spotify.yaml
+    path: ./ruleset/spotify.yaml
+    interval: 86400
+rules:
+  - GEOIP,LAN,本地直连
+  - GEOIP,CN,本地直连
+  - RULE-SET,applications,本地直连
+  - RULE-SET,direct,本地直连
+  - RULE-SET,lancidr,本地直连
+  - RULE-SET,cncidr,本地直连
+  - RULE-SET,GitHub,GitHub
+  - RULE-SET,telegramcidr,Telegram
+  - RULE-SET,YouTube,YouTube
+  - RULE-SET,Spotify,Spotify
+  - RULE-SET,Netflix,Netflix
+  - RULE-SET,HBO,HBO
+  - RULE-SET,Bing,Bing
+  - RULE-SET,OpenAI,OpenAI
+  - RULE-SET,Disney,Disney
+  - RULE-SET,Google,Google
+  - RULE-SET,proxy,全球代理
+  - RULE-SET,gfw,全球代理
+  - MATCH,漏网之鱼
+EOF
+
+}
+# 随机salt
+initRandomSalt() {
+    local chars="abcdefghijklmnopqrtuxyz"
+    local initCustomPath=
+    for i in {1..10}; do
+        echo "${i}" >/dev/null
+        initCustomPath+="${chars:RANDOM%${#chars}:1}"
+    done
+    echo "${initCustomPath}"
+}
 # 订阅
 subscribe() {
     readInstallProtocolType
@@ -5843,31 +6419,83 @@ subscribe() {
     if echo "${currentInstallProtocolType}" | grep -q 0 && [[ -n "${configPath}" ]]; then
 
         echoContent skyBlue "-------------------------备注---------------------------------"
-        echoContent yellow "# 查看订阅时会重新生成订阅"
-        echoContent yellow "# 每次添加、删除账号需要重新查看订阅"
-        rm -rf /etc/v2ray-agent/subscribe/*
-        rm -rf /etc/v2ray-agent/subscribe_tmp/*
-        showAccounts >/dev/null
-        mv /etc/v2ray-agent/subscribe_tmp/* /etc/v2ray-agent/subscribe/
+        echoContent yellow "# 查看订阅会重新生成本地账号的订阅"
+        echoContent yellow "# 添加账号或者修改账号需要重新查看订阅才会重新生成对外访问的订阅内容"
+        echoContent red "# 需要手动输入md5加密的salt值，如果不了解使用随机即可"
+        echoContent yellow "# 不影响已添加的远程订阅的内容\n"
 
-        if [[ -n $(ls /etc/v2ray-agent/subscribe/) ]]; then
-            find /etc/v2ray-agent/subscribe/* | while read -r email; do
-                email=$(echo "${email}" | awk -F "[b][e][/]" '{print $2}')
+        if [[ -f "/etc/v2ray-agent/subscribe_local/subscribeSalt" && -n $(cat "/etc/v2ray-agent/subscribe_local/subscribeSalt") ]]; then
+            read -r -p "读取到上次安装设置的Salt，是否使用上次生成的Salt ？[y/n]:" historySaltStatus
+            if [[ "${historySaltStatus}" == "y" ]]; then
+                subscribeSalt=$(cat /etc/v2ray-agent/subscribe_local/subscribeSalt)
+            else
+                read -r -p "请输入salt值, [回车]使用随机:" subscribeSalt
+            fi
+        else
+            read -r -p "请输入salt值, [回车]使用随机:" subscribeSalt
+        fi
+
+        if [[ -z "${subscribeSalt}" ]]; then
+            subscribeSalt=$(initRandomSalt)
+        fi
+        echoContent yellow "\n ---> Salt: ${subscribeSalt}"
+
+        echo "${subscribeSalt}" >/etc/v2ray-agent/subscribe_local/subscribeSalt
+
+        rm -rf /etc/v2ray-agent/subscribe/default/*
+        rm -rf /etc/v2ray-agent/subscribe/clashMeta/*
+        rm -rf /etc/v2ray-agent/subscribe_local/default/*
+        rm -rf /etc/v2ray-agent/subscribe_local/clashMeta/*
+        showAccounts >/dev/null
+
+        if [[ -n $(ls /etc/v2ray-agent/subscribe_local/default/) ]]; then
+            find /etc/v2ray-agent/subscribe_local/default/* | while read -r email; do
+                email=$(echo "${email}" | awk -F "[d][e][f][a][u][l][t][/]" '{print $2}')
+                # md5加密
+                local emailMd5=
+                emailMd5=$(echo -n "${email}${subscribeSalt}"$'\n' | md5sum | awk '{print $1}')
+
+                cat "/etc/v2ray-agent/subscribe_local/default/${email}" >>"/etc/v2ray-agent/subscribe/default/${emailMd5}"
+
+                if [[ -f "/etc/v2ray-agent/subscribe_remote/default/${email}" ]]; then
+                    cat "/etc/v2ray-agent/subscribe_remote/default/${email}" >>"/etc/v2ray-agent/subscribe/default/${emailMd5}"
+                fi
 
                 local base64Result
-                base64Result=$(base64 -w 0 "/etc/v2ray-agent/subscribe/${email}")
-                echo "${base64Result}" >"/etc/v2ray-agent/subscribe/${email}"
-                echoContent skyBlue "--------------------------------------------------------------"
-                echoContent yellow "email:${email}\n"
+                base64Result=$(base64 -w 0 "/etc/v2ray-agent/subscribe/default/${emailMd5}")
+                echo "${base64Result}" >"/etc/v2ray-agent/subscribe/default/${emailMd5}"
+
+                echoContent yellow "--------------------------------------------------------------"
                 local currentDomain=${currentHost}
 
                 if [[ -n "${currentDefaultPort}" && "${currentDefaultPort}" != "443" ]]; then
                     currentDomain="${currentHost}:${currentDefaultPort}"
                 fi
+                echoContent skyBlue "\n----------默认订阅----------\n"
+                echoContent green "email:${email}\n"
+                echoContent yellow "url:https://${currentDomain}/s/default/${emailMd5}\n"
+                echoContent yellow "在线二维码:https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=https://${currentDomain}/s/default/${emailMd5}\n"
+                echo "https://${currentDomain}/s/default/${emailMd5}" | qrencode -s 10 -m 1 -t UTF8
 
-                echoContent yellow "url:https://${currentDomain}/s/${email}\n"
-                echoContent yellow "在线二维码:https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=https://${currentDomain}/s/${email}\n"
-                echo "https://${currentDomain}/s/${email}" | qrencode -s 10 -m 1 -t UTF8
+                # clashMeta
+                if [[ -f "/etc/v2ray-agent/subscribe_local/clashMeta/${email}" ]]; then
+
+                    cat "/etc/v2ray-agent/subscribe_local/clashMeta/${email}" >>"/etc/v2ray-agent/subscribe/clashMeta/${emailMd5}"
+
+                    if [[ -f "/etc/v2ray-agent/subscribe_remote/clashMeta/${email}" ]]; then
+                        cat "/etc/v2ray-agent/subscribe_remote/clashMeta/${email}" >>"/etc/v2ray-agent/subscribe/clashMeta/${emailMd5}"
+                    fi
+
+                    sed -i '1i\proxies:' "/etc/v2ray-agent/subscribe/clashMeta/${emailMd5}"
+
+                    local clashProxyUrl="https://${currentDomain}/s/clashMeta/${emailMd5}"
+                    clashMetaConfig "${clashProxyUrl}" "${emailMd5}"
+                    echoContent skyBlue "\n----------clashMeta订阅----------\n"
+                    echoContent yellow "url:https://${currentDomain}/s/clashMetaProfiles/${emailMd5}\n"
+                    echoContent yellow "在线二维码:https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=https://${currentDomain}/s/clashMetaProfiles/${emailMd5}\n"
+                    echo "https://${currentDomain}/s/clashMetaProfiles/${emailMd5}" | qrencode -s 10 -m 1 -t UTF8
+                fi
+
                 echoContent skyBlue "--------------------------------------------------------------"
             done
         fi
@@ -5981,14 +6609,17 @@ initRealityPort() {
     # todo 读取到VLESS_TLS_Vision端口，提示是否使用使用。这里可能有歧义
     if [[ -z "${realityPort}" ]]; then
         if [[ -n "${port}" ]]; then
-            echoContent yellow "请输入端口[回车默认使用TLS+Vision端口]"
-            read -r -p "端口:" realityPort
-            if [[ -z "${realityPort}" ]]; then
+            read -r -p "是否使用TLS+Vision端口 ？[y/n]:" realityPortTLSVisionStatus
+            if [[ "${realityPortTLSVisionStatus}" == "y" ]]; then
                 realityPort=${port}
             fi
-        else
-            echoContent yellow "请输入端口"
+        fi
+        if [[ -z "${realityPort}" ]]; then
+            echoContent yellow "请输入端口[回车随机10000-60000]"
             read -r -p "端口:" realityPort
+            if [[ -z "${realityPort}" ]]; then
+                realityPort=$((RANDOM % 50001 + 10000))
+            fi
         fi
         if [[ -n "${realityPort}" && "${currentRealityPort}" == "${realityPort}" ]]; then
             handleXray stop
@@ -6123,7 +6754,7 @@ menu() {
     cd "$HOME" || exit
     echoContent red "\n=============================================================="
     echoContent green "作者：mack-a"
-    echoContent green "当前版本：v2.8.2"
+    echoContent green "当前版本：v2.8.9"
     echoContent green "Github：https://github.com/mack-a/v2ray-agent"
     echoContent green "描述：八合一共存脚本\c"
     showInstallStatus
@@ -6131,7 +6762,8 @@ menu() {
     echoContent red "\n=========================== 推广区============================"
     echoContent red "                                              "
     echoContent green "推广请联系TG：@mackaff\n"
-    echoContent green "AFF捐赠：https://www.v2ray-agent.com/categories/vps"
+    echoContent green "购买VPS进行捐赠：https://www.v2ray-agent.com/categories/vps"
+    echoContent green "ChatGPT解锁：https://www.v2ray-agent.com/archives/olinkshen-du-ce-ping"
     echoContent red "=============================================================="
     if [[ -n "${coreInstallType}" ]]; then
         echoContent yellow "1.重新安装"
