@@ -6570,11 +6570,11 @@ initRealityDest() {
     if [[ -n "${domain}" ]]; then
         realityDestDomain=${domain}:${port}
     else
-        echoContent skyBlue "\n===== 生成配置回落的域名 例如:[www.google-analytics.com:443] ======\n"
+        echoContent skyBlue "\n===== 生成配置回落的域名 例如:[itunes.apple.com:443] ======\n"
         echoContent green "回落域名参考：https://www.v2ray-agent.com/archives/1680104902581#heading-8\n"
         read -r -p "请输入[回车]使用默认:" realityDestDomain
         if [[ -z "${realityDestDomain}" ]]; then
-            realityDestDomain="www.google-analytics.com:443"
+            realityDestDomain="itunes.apple.com:443"
         fi
         echoContent yellow "\n ---> 回落域名: ${realityDestDomain}"
     fi
@@ -6587,10 +6587,10 @@ initRealityClientServersName() {
         echoContent skyBlue "\n================ 配置客户端可用的serverNames ================\n"
         echoContent yellow "#注意事项"
         echoContent green "客户端可用的serverNames：https://www.v2ray-agent.com/archives/1680104902581#heading-8\n"
-        echoContent yellow "录入示例:www.google-analytics.com\n"
+        echoContent yellow "录入示例:itunes.apple.com\n"
         read -r -p "请输入[回车]使用默认:" realityServerNames
         if [[ -z "${realityServerNames}" ]]; then
-            realityServerNames=\"www.google-analytics.com\"
+            realityServerNames=\"itunes.apple.com\"
         else
             realityServerNames=\"${realityServerNames//,/\",\"}\"
         fi
